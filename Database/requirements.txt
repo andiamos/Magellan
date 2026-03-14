@@ -3,6 +3,7 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 streamlit
+altair==4.2.2
 langchain
 langchain-community
 langchain-google-genai
