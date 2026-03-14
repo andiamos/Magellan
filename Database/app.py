@@ -10,6 +10,43 @@ st.set_page_config(page_title="Analiză Legislativă AI", layout="wide", page_ic
 # Incarcare mediu
 load_dotenv()
 db_url = os.getenv("DATABASE_URL")
+app_password = os.getenv("APP_PASSWORD", "magellan2024") # Fallback daca nu e setat
+
+# --- Sistem de Autentificare Simpatic ---
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+def check_password():
+    if st.session_state["authenticated"]:
+        return True
+    
+    st.markdown("""
+        <style>
+        .login-box {
+            padding: 2rem;
+            border-radius: 10px;
+            background-color: #f0f2f6;
+            text-align: center;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    col_l, col_m, col_r = st.columns([1, 2, 1])
+    with col_m:
+        st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=100)
+        st.title("Acces Magellan")
+        pwd = st.text_input("Introdu parola de acces pentru echipă:", type="password")
+        if st.button("Deblochează 🚀"):
+            if pwd == app_password:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Parolă incorectă. Te rugăm să verifici cu adminul.")
+    return False
+
+if not check_password():
+    st.stop()
+# ---------------------------------------
 
 @st.cache_resource
 def get_engine():
