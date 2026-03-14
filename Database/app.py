@@ -156,7 +156,7 @@ with tab2:
                         
                         # Conn to LangChain SQL Agent Mechanism
                         db = SQLDatabase.from_uri(db_url)
-                        llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model="gemini-2.5-flash", temperature=0)
+                        llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model="gemini-1.5-flash", temperature=0)
                         
                         agent_executor = create_sql_agent(
                             llm=llm,
