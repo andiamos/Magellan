@@ -199,7 +199,8 @@ with tab2:
                         llm = ChatGoogleGenerativeAI(
                             model="gemini-1.5-flash-latest",
                             google_api_key=gemini_key,
-                            temperature=0
+                            temperature=0,
+                            version="v1"
                         )
                         
                         agent_executor = create_sql_agent(
