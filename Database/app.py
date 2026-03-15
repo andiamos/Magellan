@@ -4,14 +4,6 @@ import pandas as pd
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
-# Importuri AI (mutate la inceput pentru stabilitate)
-try:
-    from langchain_community.utilities import SQLDatabase
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_community.agent_toolkits import create_sql_agent, SQLDatabaseToolkit
-except ImportError:
-    pass # Vor fi gestionate mai jos daca e cazul
-
 # Configurare Pagină
 st.set_page_config(page_title="Analiză Legislativă AI", layout="wide", page_icon="🏛️")
 
@@ -68,7 +60,6 @@ engine = get_engine()
 
 st.title("🏛️ Platformă de Analiză Legislativă (Testare Echipă)")
 st.caption("Conectat live la structura normalizată NeonDB. Modul Dashboard & Modul Asistent AI Active.")
-st.write(f"⚙️ Runtime: Python {os.sys.version.split()[0]}")
 
 # Creare secțiuni (Tabs)
 tab1, tab2 = st.tabs(["📊 Dashboard Echipă", "🤖 Asistent AI Data Agent"])
@@ -172,11 +163,8 @@ with tab2:
     st.header("Interoghează Baza de Date cu Inteligenta Artificiala")
     st.write("Acest agent are acces *doar in citire* la schema noastra de Legi, Parlamentari, si Comisii. Îi poți pune întrebări direct în Română.")
     
-    # --- Debug Info Eliminat (Conform sugestiei) ---
-    # ------------------
-    
     # Secure API Key Entry for Team Testing
-    gemini_key = st.text_input("Cheia API Google Gemini:", type="password", key="gemini", help="Pune cheia ta Gemini API aici.")
+    gemini_key = st.text_input("Cheia API Google Gemini:", type="password", key="gemini", help="Pune cheia ta Gemini API aici pentru a alimenta 'creierul' Agentului.")
     
     # Chat History
     if "messages" not in st.session_state:
@@ -199,22 +187,17 @@ with tab2:
             else:
                 with st.spinner("Agentul accesează schema Neon DB și scrie codul SQL..."):
                     try:
-                        # Imports are already at the top
+                        from langchain_community.utilities import SQLDatabase
+                        from langchain_google_genai import ChatGoogleGenerativeAI
+                        from langchain_community.agent_toolkits import create_sql_agent
                         
-                        # Conn to LangChain SQL Agent Mechanism (Simplified per user recommendation)
+                        # Conn to LangChain SQL Agent Mechanism
                         db = SQLDatabase.from_uri(db_url)
-                        llm = ChatGoogleGenerativeAI(
-                            model="gemini-1.5-flash",
-                            google_api_key=gemini_key,
-                            temperature=0,
-                            version="v1"
-                        )
-                        
-                        toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+                        llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model="gemini-1.5-flash", temperature=0)
                         
                         agent_executor = create_sql_agent(
                             llm=llm,
-                            toolkit=toolkit,
+                            db=db,
                             agent_type="openai-tools",
                             verbose=True
                         )
