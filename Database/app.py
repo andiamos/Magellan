@@ -160,8 +160,17 @@ with tab1:
         st.error(f"Eroare la redarea tabloului de bord: {e}")
 
 with tab2:
-    st.header("Interoghează Baza de Date cu Inteligenta Artificiala")
     st.write("Acest agent are acces *doar in citire* la schema noastra de Legi, Parlamentari, si Comisii. Îi poți pune întrebări direct în Română.")
+    
+    # --- Debug Info ---
+    with st.expander("🛠️ Diagnostic Sistem (Echipa Tehnică)"):
+        import langchain_google_genai
+        import langchain
+        st.write(f"Streamlit Version: {st.__version__}")
+        st.write(f"LangChain Version: {langchain.__version__}")
+        st.write(f"Google GenAI Plugin: {langchain_google_genai.__version__}")
+        st.write(f"Python Version: {os.sys.version}")
+    # ------------------
     
     # Secure API Key Entry for Team Testing
     col_a, col_b = st.columns([2, 1])
@@ -201,7 +210,8 @@ with tab2:
                             model=model_name,
                             google_api_key=gemini_key,
                             temperature=0,
-                            convert_system_message_to_human=True
+                            convert_system_message_to_human=True,
+                            transport="rest"
                         )
                         
                         agent_executor = create_sql_agent(
