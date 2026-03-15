@@ -162,14 +162,15 @@ with tab1:
 with tab2:
     st.write("Acest agent are acces *doar in citire* la schema noastra de Legi, Parlamentari, si Comisii. Îi poți pune întrebări direct în Română.")
     
-    # --- Debug Info ---
-    with st.expander("🛠️ Diagnostic Sistem (Echipa Tehnică)"):
-        import langchain_google_genai
-        import langchain
-        st.write(f"Streamlit Version: {st.__version__}")
-        st.write(f"LangChain Version: {langchain.__version__}")
-        st.write(f"Google GenAI Plugin: {langchain_google_genai.__version__}")
-        st.write(f"Python Version: {os.sys.version}")
+    # --- Debug Info (Safer) ---
+    with st.expander("🛠️ Diagnostic Sistem"):
+        import importlib.metadata
+        try:
+            st.write(f"Streamlit: {st.__version__}")
+            st.write(f"LangChain: {importlib.metadata.version('langchain')}")
+            st.write(f"Google GenAI Plugin: {importlib.metadata.version('langchain-google-genai')}")
+        except Exception:
+            st.write("Informații versiune indisponibile.")
     # ------------------
     
     # Secure API Key Entry for Team Testing
