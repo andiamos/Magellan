@@ -159,26 +159,11 @@ with tab1:
     except Exception as e:
         st.error(f"Eroare la redarea tabloului de bord: {e}")
 
-with tab2:
-    st.write("Acest agent are acces *doar in citire* la schema noastra de Legi, Parlamentari, si Comisii. Îi poți pune întrebări direct în Română.")
-    
-    # --- Debug Info (Safer) ---
-    with st.expander("🛠️ Diagnostic Sistem"):
-        import importlib.metadata
-        try:
-            st.write(f"Streamlit: {st.__version__}")
-            st.write(f"LangChain: {importlib.metadata.version('langchain')}")
-            st.write(f"Google GenAI Plugin: {importlib.metadata.version('langchain-google-genai')}")
-        except Exception:
-            st.write("Informații versiune indisponibile.")
+    # --- Debug Info Eliminat (Conform sugestiei) ---
     # ------------------
     
     # Secure API Key Entry for Team Testing
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        gemini_key = st.text_input("Cheia API Google Gemini:", type="password", key="gemini", help="Pune cheia ta Gemini API aici.")
-    with col_b:
-        model_name = st.selectbox("Alege Modelul:", ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-1.0-pro"], index=0)
+    gemini_key = st.text_input("Cheia API Google Gemini:", type="password", key="gemini", help="Pune cheia ta Gemini API aici.")
     
     # Chat History
     if "messages" not in st.session_state:
@@ -205,14 +190,12 @@ with tab2:
                         from langchain_google_genai import ChatGoogleGenerativeAI
                         from langchain_community.agent_toolkits import create_sql_agent
                         
-                        # Conn to LangChain SQL Agent Mechanism
+                        # Conn to LangChain SQL Agent Mechanism (Simplified per user recommendation)
                         db = SQLDatabase.from_uri(db_url)
                         llm = ChatGoogleGenerativeAI(
-                            model=model_name,
+                            model="gemini-1.5-flash-latest",
                             google_api_key=gemini_key,
-                            temperature=0,
-                            convert_system_message_to_human=True,
-                            transport="rest"
+                            temperature=0
                         )
                         
                         agent_executor = create_sql_agent(
