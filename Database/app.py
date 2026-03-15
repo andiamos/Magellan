@@ -192,7 +192,7 @@ with tab2:
                     try:
                         from langchain_community.utilities import SQLDatabase
                         from langchain_google_genai import ChatGoogleGenerativeAI
-                        from langchain_community.agent_toolkits import create_sql_agent
+                        from langchain_community.agent_toolkits import create_sql_agent, SQLDatabaseToolkit
                         
                         # Conn to LangChain SQL Agent Mechanism (Simplified per user recommendation)
                         db = SQLDatabase.from_uri(db_url)
@@ -203,9 +203,11 @@ with tab2:
                             version="v1"
                         )
                         
+                        toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+                        
                         agent_executor = create_sql_agent(
                             llm=llm,
-                            db=db,
+                            toolkit=toolkit,
                             agent_type="openai-tools",
                             verbose=True
                         )
