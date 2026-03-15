@@ -4,6 +4,14 @@ import pandas as pd
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
+# Importuri AI (mutate la inceput pentru stabilitate)
+try:
+    from langchain_community.utilities import SQLDatabase
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_community.agent_toolkits import create_sql_agent, SQLDatabaseToolkit
+except ImportError:
+    pass # Vor fi gestionate mai jos daca e cazul
+
 # Configurare Pagină
 st.set_page_config(page_title="Analiză Legislativă AI", layout="wide", page_icon="🏛️")
 
@@ -60,6 +68,7 @@ engine = get_engine()
 
 st.title("🏛️ Platformă de Analiză Legislativă (Testare Echipă)")
 st.caption("Conectat live la structura normalizată NeonDB. Modul Dashboard & Modul Asistent AI Active.")
+st.write(f"⚙️ Runtime: Python {os.sys.version.split()[0]}")
 
 # Creare secțiuni (Tabs)
 tab1, tab2 = st.tabs(["📊 Dashboard Echipă", "🤖 Asistent AI Data Agent"])
@@ -190,9 +199,7 @@ with tab2:
             else:
                 with st.spinner("Agentul accesează schema Neon DB și scrie codul SQL..."):
                     try:
-                        from langchain_community.utilities import SQLDatabase
-                        from langchain_google_genai import ChatGoogleGenerativeAI
-                        from langchain_community.agent_toolkits import create_sql_agent, SQLDatabaseToolkit
+                        # Imports are already at the top
                         
                         # Conn to LangChain SQL Agent Mechanism (Simplified per user recommendation)
                         db = SQLDatabase.from_uri(db_url)
