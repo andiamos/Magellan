@@ -164,7 +164,11 @@ with tab2:
     st.write("Acest agent are acces *doar in citire* la schema noastra de Legi, Parlamentari, si Comisii. Îi poți pune întrebări direct în Română.")
     
     # Secure API Key Entry for Team Testing
-    gemini_key = st.text_input("Cheia API Google Gemini:", type="password", key="gemini", help="Pune cheia ta Gemini API aici pentru a alimenta 'creierul' Agentului.")
+    col_a, col_b = st.columns([2, 1])
+    with col_a:
+        gemini_key = st.text_input("Cheia API Google Gemini:", type="password", key="gemini", help="Pune cheia ta Gemini API aici.")
+    with col_b:
+        model_name = st.selectbox("Alege Modelul:", ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b", "gemini-1.0-pro"], index=0)
     
     # Chat History
     if "messages" not in st.session_state:
@@ -193,7 +197,7 @@ with tab2:
                         
                         # Conn to LangChain SQL Agent Mechanism
                         db = SQLDatabase.from_uri(db_url)
-                        llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model="gemini-1.5-flash-latest", temperature=0)
+                        llm = ChatGoogleGenerativeAI(google_api_key=gemini_key, model=model_name, temperature=0)
                         
                         agent_executor = create_sql_agent(
                             llm=llm,
