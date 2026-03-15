@@ -159,6 +159,10 @@ with tab1:
     except Exception as e:
         st.error(f"Eroare la redarea tabloului de bord: {e}")
 
+with tab2:
+    st.header("Interoghează Baza de Date cu Inteligenta Artificiala")
+    st.write("Acest agent are acces *doar in citire* la schema noastra de Legi, Parlamentari, si Comisii. Îi poți pune întrebări direct în Română.")
+    
     # --- Debug Info Eliminat (Conform sugestiei) ---
     # ------------------
     
