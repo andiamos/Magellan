@@ -17,6 +17,23 @@ def clean_boolean(val):
     val_str = str(val).strip().lower()
     return val_str in ['da', 'true', '1']
 
+def extract_monitorul_oficial(val):
+    if pd.isna(val) or str(val).lower() == 'nu a fost specificat':
+        return None, None
+    
+    val_str = str(val).strip()
+    # Pattern to match nr. X/DD.MM.YYYY or nr. X/DD/MM/YYYY
+    match = re.search(r'nr\.\s*(\d+)[\s/]+(\d{2}[\./]\d{2}[\./]\d{4})', val_str)
+    if match:
+        return match.group(1), match.group(2)
+    
+    # Fallback for just the number if date is missing or in different format
+    match_nr = re.search(r'nr\.\s*(\d+)', val_str)
+    if match_nr:
+        return match_nr.group(1), None
+        
+    return None, None
+
 def normalize_data():
     load_dotenv()
     db_url = os.getenv("DATABASE_URL")
@@ -61,6 +78,11 @@ def normalize_data():
     # Mapping table for the business key (lege string -> legi.id)
     lege_to_id = dict(zip(legi_df['lege'], legi_df['id']))
     
+    print("Extracting Monitorul Oficial details...")
+    mo_details = legi_df['Monitorul Oficial'].apply(extract_monitorul_oficial)
+    legi_df['mo_numar'] = [d[0] for d in mo_details]
+    legi_df['mo_data'] = [d[1] for d in mo_details]
+
     # Prepare the legi table for insertion
     legi_insert = pd.DataFrame({
         'id': legi_df['id'],
@@ -76,7 +98,9 @@ def normalize_data():
         'procedura_urgenta': legi_df['Procedura de urgență'].apply(clean_boolean),
         'stadiu_general': legi_df['Stadiu'].apply(clean_romanian_text),
         'rezumat': legi_df['Rezumat forma Initiala'],
-        'pct_vedere_guvern': legi_df['Punct de vedere guvern']
+        'pct_vedere_guvern': legi_df['Punct de vedere guvern'],
+        'monitorul_oficial_numar': legi_df['mo_numar'],
+        'monitorul_oficial_data': legi_df['mo_data']
     })
     
     # 3. Build Parlamentari (Initiatori)

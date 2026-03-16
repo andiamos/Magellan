@@ -74,7 +74,7 @@ with tab1:
         @st.cache_data(ttl=300)
         def load_dashboard_data(url):
             eng = create_engine(url)
-            l_df = pd.read_sql("SELECT id, prima_camera, tip_initiativa, data_inregistrare FROM legi", eng)
+            l_df = pd.read_sql("SELECT id, numar_lege, titlu, prima_camera, tip_initiativa, data_inregistrare, monitorul_oficial_numar, monitorul_oficial_data FROM legi", eng)
             l_df['an'] = l_df['data_inregistrare'].str.extract(r'(\d{4})')[0]
             
             i_df = pd.read_sql("""
@@ -155,6 +155,18 @@ with tab1:
             st.dataframe(top_df, use_container_width=True)
         else:
             st.info("Nu există date despre parlamentari pentru filtrele selectate.")
+            
+        st.divider()
+        
+        st.subheader("Previzualizare Publicări (Monitorul Oficial)")
+        # Show only laws that have a Monitorul Oficial number
+        mo_df = filtered_legi[filtered_legi['monitorul_oficial_numar'].notna()].copy()
+        if not mo_df.empty:
+            mo_display = mo_df[['numar_lege', 'titlu', 'monitorul_oficial_numar', 'monitorul_oficial_data']].head(10)
+            mo_display.columns = ['Număr Lege', 'Titlu', 'Nr. M.Of.', 'Data M.Of.']
+            st.dataframe(mo_display, use_container_width=True)
+        else:
+            st.info("Nu există date de publicare pentru selecția curentă.")
             
     except Exception as e:
         st.error(f"Eroare la redarea tabloului de bord: {e}")
