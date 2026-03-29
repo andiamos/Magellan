@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import pandas as pd
 from sqlalchemy import create_engine
@@ -208,52 +209,31 @@ with tab1:
                 
                 # Definim lista canonică (State Machine 22 Pași)
                 pasii_canonici = [
-                    (1, "Depunere proiect de lege (I-a Camera)"),
-                    (2, "Prezentare in Biroul Permanent (I-a Camera)"),
-                    (3, "Avize Consultative (I-a Camera)"),
-                    (4, "Trimitere catre comisii (I-a Camera)"),
-                    (5, "Avize Comisii (I-a Camera)"),
-                    (6, "Raport Comisii (I-a Camera)"),
-                    (7, "Ordinea de zi a Plenului (I-a Camera)"),
-                    (8, "Vot Plen (I-a Camera)"),
-                    (9, "Depunere proiect de lege (II-a Camera)"),
-                    (10, "Prezentare in Biroul Permanent (II-a Camera)"),
-                    (11, "Avize Consultative (II-a Camera)"),
-                    (12, "Trimitere catre comisii (II-a Camera)"),
-                    (13, "Avize Comisii (II-a Camera)"),
-                    (14, "Raport Comisii (II-a Camera)"),
-                    (15, "Ordinea de zi a Plenului (II-a Camera)"),
-                    (16, "Vot Plen (II-a Camera)"),
+                    (1, "Dep. proiect (I-a Cam.)"),
+                    (2, "BP (I-a Cam.)"),
+                    (3, "Avize Cons. (I-a Cam.)"),
+                    (4, "Trim. comisii (I-a Cam.)"),
+                    (5, "Avize Comisii (I-a Cam.)"),
+                    (6, "Raport Comisii (I-a Cam.)"),
+                    (7, "Ord. de zi (I-a Cam.)"),
+                    (8, "Vot Plen (I-a Cam.)"),
+                    (9, "Dep. proiect (II-a Cam.)"),
+                    (10, "BP (II-a Cam.)"),
+                    (11, "Avize Cons. (II-a Cam.)"),
+                    (12, "Trim. comisii (II-a Cam.)"),
+                    (13, "Avize Comisii (II-a Cam.)"),
+                    (14, "Raport Comisii (II-a Cam.)"),
+                    (15, "Ord. de zi (II-a Cam.)"),
+                    (16, "Vot Plen (II-a Cam.)"),
                     (17, "Sesizare CCR"),
-                    (18, "Legea este neconstitutionala"),
+                    (18, "CC Admite Neconst."),
                     (19, "Trimis Promulgare"),
                     (20, "Intoarsa Parlament"),
                     (21, "Promulgat Presedinte"),
-                    (22, "Publicat Mo")
+                    (22, "Publicat M.Of")
                 ]
                 
-                # Container pt design strâns
-                with st.container(border=True):
-                    # Desenam timeline-ul vertical 
-                    for pas_nr, nume_pas in pasii_canonici:
-                        detaliu_row = pasi_lege_curenta[pasi_lege_curenta['ordine_pas'] == pas_nr]
-                        
-                        # Pas atins = Rândul există, iar valoarea din detalii este validă (diferită de None/NaN)
-                        este_atins = False
-                        text_detaliu = ""
-                        
-                        if not detaliu_row.empty:
-                            valoare = detaliu_row.iloc[0]['detalii']
-                            if pd.notna(valoare) and str(valoare).strip() != "" and str(valoare).lower() != "none":
-                                este_atins = True
-                                text_detaliu = str(valoare)
-                                
-                        if este_atins:
-                            st.markdown(f"<div style='margin-bottom:8px;'><b>🟢 Pas {pas_nr}: {nume_pas}</b><br/><span style='color:gray; font-size:12px; margin-left: 25px;'>↳ <i>{text_detaliu}</i></span></div>", unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"<div style='margin-bottom:8px;'><span style='color:lightgrey;'>⚪ Pas {pas_nr}: {nume_pas}</span></div>", unsafe_allow_html=True)
-                            
-                # Afisare Tabel Reexaminare (doar daca a generat intrari valide!)
+                # Căutăm reexaminarea
                 reex_curenta = pasi_reex_df[pasi_reex_df['lege_id'] == id_lege]
                 are_reexaminare = False
                 
@@ -264,45 +244,103 @@ with tab1:
                             are_reexaminare = True
                             break
                             
-                if are_reexaminare:
-                    st.markdown("<br/>#### ⚠️ Traseu de Reexaminare", unsafe_allow_html=True)
+                pasii_reex_canonici = [
+                    (1, "Cerere Reex. (I-a Cam.)"),
+                    (2, "BP (I-a Cam.)"),
+                    (3, "Trim. comisii (I-a Cam.)"),
+                    (4, "Raport Comisii (I-a Cam.)"),
+                    (5, "Ord. de zi (I-a Cam.)"),
+                    (6, "Vot Plen (I-a Cam.)"),
+                    (7, "Cerere Reex. (II-a Cam.)"),
+                    (8, "BP (II-a Cam.)"),
+                    (9, "Trim. comisii (II-a Cam.)"),
+                    (10, "Raport Comisii (II-a Cam.)"),
+                    (11, "Ord. de zi (II-a Cam.)"),
+                    (12, "Vot Plen (II-a Cam.)"),
+                    (13, "Trimis Promulgare"),
+                    (14, "Promulgat Presedinte"),
+                    (15, "Publicat M.Of")
+                ]
+                
+                with st.container(border=True):
+                    # Generează codul sursă pentru diagrama Mermaid (Rețea Metrou)
+                    mermaid_code = ["graph TD"]
+                    mermaid_code.append("classDef done fill:#d4edda,stroke:#28a745,stroke-width:2px,color:#155724")
+                    mermaid_code.append("classDef todo fill:#f8f9fa,stroke:#ced4da,stroke-width:2px,color:#6c757d")
+                    mermaid_code.append("classDef reex fill:#ffe8a1,stroke:#ffc107,stroke-width:3px,color:#856404")
                     
-                    pasii_reex_canonici = [
-                        (1, "Depunere cerere reexaminare (I-a Camera)"),
-                        (2, "Prezentare in Biroul Permanent (I-a Camera)"),
-                        (3, "Trimitere catre comisii (I-a Camera)"),
-                        (4, "Raport Comisii (I-a Camera)"),
-                        (5, "Ordinea de zi a Plenului (I-a Camera)"),
-                        (6, "Vot Plen (I-a Camera)"),
-                        (7, "Depunere cerere reexaminare (II-a Camera)"),
-                        (8, "Prezentare in Biroul Permanent (II-a Camera)"),
-                        (9, "Trimitere catre comisii (II-a Camera)"),
-                        (10, "Raport Comisii (II-a Camera)"),
-                        (11, "Ordinea de zi a Plenului (II-a Camera)"),
-                        (12, "Vot Plen (II-a Camera)"),
-                        (13, "Trimis Promulgare"),
-                        (14, "Promulgat Presedinte"),
-                        (15, "Publicat in MO")
-                    ]
+                    # Rădăcinile de traseu standard
+                    for pas_nr, nume_pas in pasii_canonici:
+                        detaliu_row = pasi_lege_curenta[pasi_lege_curenta['ordine_pas'] == pas_nr]
+                        este_atins = False
+                        
+                        if not detaliu_row.empty:
+                            valoare = detaliu_row.iloc[0]['detalii']
+                            if pd.notna(valoare) and str(valoare).strip() != "" and str(valoare).lower() != "none":
+                                este_atins = True
+                        
+                        clean_name = nume_pas.replace("(", "").replace(")", "").replace('"', '')
+                        mermaid_code.append(f"  P{pas_nr}[\"{pas_nr}. {clean_name}\"]")
+                        
+                        if este_atins:
+                            mermaid_code.append(f"  class P{pas_nr} done")
+                        else:
+                            mermaid_code.append(f"  class P{pas_nr} todo")
+                            
+                        # Desenează sinele (traseul M1)
+                        if pas_nr > 1:
+                            if pas_nr == 21 and are_reexaminare:
+                                # Macaz: Daca intra in reexaminare, tronsonul vechi cade (ramane gri in aer)
+                                pass
+                            else:
+                                mermaid_code.append(f"  P{pas_nr-1} --> P{pas_nr}")
                     
-                    with st.container(border=True):
-                        # Desenam timeline-ul vertical pentru reexaminare
+                    if are_reexaminare:
+                        # Deschidem o linie nouă din statia 20!
+                        mermaid_code.append(f"  P20 -.->|Deviere: Cerere de Reexaminare| R1")
+                        
                         for pas_nr, nume_pas in pasii_reex_canonici:
                             detaliu_row = reex_curenta[reex_curenta['ordine_pas'] == pas_nr]
-                            
                             este_atins = False
-                            text_detaliu = ""
                             
                             if not detaliu_row.empty:
                                 valoare = detaliu_row.iloc[0]['detalii']
                                 if pd.notna(valoare) and str(valoare).strip() != "" and str(valoare).lower() != "none":
                                     este_atins = True
-                                    text_detaliu = str(valoare)
                                     
+                            clean_name = nume_pas.replace("(", "").replace(")", "").replace('"', '')
+                            # Prefixăm statiile cu R- pentru a indica distinctia Liniei Secundare
+                            mermaid_code.append(f"  R{pas_nr}([\"R-{pas_nr}. {clean_name}\"])")
+                            
                             if este_atins:
-                                st.markdown(f"<div style='margin-bottom:8px;'><b>🟠 Pas R-{pas_nr}: {nume_pas}</b><br/><span style='color:gray; font-size:12px; margin-left: 25px;'>↳ <i>{text_detaliu}</i></span></div>", unsafe_allow_html=True)
+                                mermaid_code.append(f"  class R{pas_nr} reex")
                             else:
-                                st.markdown(f"<div style='margin-bottom:8px;'><span style='color:lightgrey;'>⚪ Pas R-{pas_nr}: {nume_pas}</span></div>", unsafe_allow_html=True)
+                                mermaid_code.append(f"  class R{pas_nr} todo")
+                                
+                            # Șinele tronsonului galben/portocaliu
+                            if pas_nr > 1:
+                                mermaid_code.append(f"  R{pas_nr-1} ==> R{pas_nr}")
+                    
+                    final_mermaid = "\\n".join(mermaid_code)
+                    
+                    html_code = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <script type="module">
+                            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+                            mermaid.initialize({{ startOnLoad: true, theme: 'base' }});
+                        </script>
+                    </head>
+                    <body style="margin:0; padding:10px; font-family: sans-serif; text-align: center;">
+                        <pre class="mermaid">
+{final_mermaid}
+                        </pre>
+                    </body>
+                    </html>
+                    """
+                    
+                    components.html(html_code, height=650, scrolling=True)
 
     except Exception as e:
         st.error(f"Eroare la redarea tabloului de bord: {e}")
