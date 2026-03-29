@@ -264,7 +264,7 @@ with tab1:
                 
                 with st.container(border=True):
                     # Generează codul sursă pentru diagrama Mermaid (Rețea Metrou)
-                    mermaid_code = ["graph TD"]
+                    mermaid_code = ["graph LR"]
                     mermaid_code.append("classDef done fill:#d4edda,stroke:#28a745,stroke-width:2px,color:#155724")
                     mermaid_code.append("classDef todo fill:#f8f9fa,stroke:#ced4da,stroke-width:2px,color:#6c757d")
                     mermaid_code.append("classDef reex fill:#ffe8a1,stroke:#ffc107,stroke-width:3px,color:#856404")
@@ -320,6 +320,9 @@ with tab1:
                             # Șinele tronsonului galben/portocaliu
                             if pas_nr > 1:
                                 mermaid_code.append(f"  R{pas_nr-1} ==> R{pas_nr}")
+                                
+                        # Închidem ramura paralelă în schema originală (la stația 22)
+                        mermaid_code.append(f"  R15 ==>|Revine în Schema Principală| P22")
                     
                     final_mermaid = "\n".join(mermaid_code)
                     
