@@ -72,7 +72,7 @@ with tab1:
     try:
         # ---------------- Incarcare și Caching Date ----------------
         @st.cache_data(ttl=300)
-        def load_dashboard_data(url):
+        def load_dashboard_data_v3(url):
             eng = create_engine(url)
             l_df = pd.read_sql("SELECT id, numar_lege, titlu, prima_camera, tip_initiativa, data_inregistrare, monitorul_oficial_numar, monitorul_oficial_data FROM legi", eng)
             l_df['an'] = l_df['data_inregistrare'].str.extract(r'(\d{4})')[0]
@@ -84,9 +84,16 @@ with tab1:
             """, eng)
             
             c_df = pd.read_sql("SELECT lege_id, comisie_id FROM parcurs_comisii", eng)
-            return l_df, i_df, c_df
+            p_df = pd.read_sql("SELECT lege_id, etapa, detalii, ordine_pas FROM pasi_lege", eng)
             
-        legi_df, initiatori_df, parcurs_df = load_dashboard_data(db_url)
+            try:
+                p_reex_df = pd.read_sql("SELECT lege_id, etapa, detalii, ordine_pas FROM pasi_reexaminare", eng)
+            except Exception:
+                p_reex_df = pd.DataFrame(columns=['lege_id', 'etapa', 'detalii', 'ordine_pas'])
+                
+            return l_df, i_df, c_df, p_df, p_reex_df
+            
+        legi_df, initiatori_df, parcurs_df, pasi_df, pasi_reex_df = load_dashboard_data_v3(db_url)
         
         # Extragem listele pentru filtre
         ani_list = sorted(legi_df['an'].dropna().unique().tolist(), reverse=True)
@@ -168,6 +175,135 @@ with tab1:
         else:
             st.info("Nu există date de publicare pentru selecția curentă.")
             
+        st.divider()
+        st.header("🔍 Urmărire Progres Lege (Tracker Vertical)")
+        st.write("Alege o lege pentru a vizualiza în timp real stadiul ei de parcurs, conform procedurilor (22 pași canonici).")
+
+        # Selectbox limitat la primele 500 de legi pt performanța UI
+        lista_legi_tracker = filtered_legi.head(500)
+        
+        # Creem o formatare curată pentru Dropdown
+        options = [""] + lista_legi_tracker.apply(
+            lambda r: f"{r['numar_lege']} - {str(r['titlu'])[:80]}...", axis=1
+        ).tolist()
+        
+        lege_selectata = st.selectbox("Caută sau selectează legea:", options)
+        
+        if lege_selectata and lege_selectata != "":
+            # Extragem ID-ul numărului public (gen L120/2025)
+            numar_extras = lege_selectata.split(" - ")[0]
+            row_lege = filtered_legi[filtered_legi['numar_lege'] == numar_extras]
+            
+            if not row_lege.empty:
+                id_lege = row_lege.iloc[0]['id']
+                prima_cam = row_lege.iloc[0]['prima_camera']
+                
+                # Fetch pasi pentru aceasta lege
+                pasi_lege_curenta = pasi_df[pasi_df['lege_id'] == id_lege]
+                pasi_rezolvati = pasi_lege_curenta['ordine_pas'].tolist()
+                pasi_rezolvati.sort()
+                
+                st.markdown(f"#### Parcurs Live: {numar_extras}")
+                st.markdown(f"*Prima Cameră sesizată: **{prima_cam}***", unsafe_allow_html=True)
+                
+                # Definim lista canonică (State Machine 22 Pași)
+                pasii_canonici = [
+                    (1, "Depunere proiect de lege (I-a Camera)"),
+                    (2, "Prezentare in Biroul Permanent (I-a Camera)"),
+                    (3, "Avize Consultative (I-a Camera)"),
+                    (4, "Trimitere catre comisii (I-a Camera)"),
+                    (5, "Avize Comisii (I-a Camera)"),
+                    (6, "Raport Comisii (I-a Camera)"),
+                    (7, "Ordinea de zi a Plenului (I-a Camera)"),
+                    (8, "Vot Plen (I-a Camera)"),
+                    (9, "Depunere proiect de lege (II-a Camera)"),
+                    (10, "Prezentare in Biroul Permanent (II-a Camera)"),
+                    (11, "Avize Consultative (II-a Camera)"),
+                    (12, "Trimitere catre comisii (II-a Camera)"),
+                    (13, "Avize Comisii (II-a Camera)"),
+                    (14, "Raport Comisii (II-a Camera)"),
+                    (15, "Ordinea de zi a Plenului (II-a Camera)"),
+                    (16, "Vot Plen (II-a Camera)"),
+                    (17, "Sesizare CCR"),
+                    (18, "Legea este neconstitutionala"),
+                    (19, "Trimis Promulgare"),
+                    (20, "Intoarsa Parlament"),
+                    (21, "Promulgat Presedinte"),
+                    (22, "Publicat Mo")
+                ]
+                
+                # Container pt design strâns
+                with st.container(border=True):
+                    # Desenam timeline-ul vertical 
+                    for pas_nr, nume_pas in pasii_canonici:
+                        detaliu_row = pasi_lege_curenta[pasi_lege_curenta['ordine_pas'] == pas_nr]
+                        
+                        # Pas atins = Rândul există, iar valoarea din detalii este validă (diferită de None/NaN)
+                        este_atins = False
+                        text_detaliu = ""
+                        
+                        if not detaliu_row.empty:
+                            valoare = detaliu_row.iloc[0]['detalii']
+                            if pd.notna(valoare) and str(valoare).strip() != "" and str(valoare).lower() != "none":
+                                este_atins = True
+                                text_detaliu = str(valoare)
+                                
+                        if este_atins:
+                            st.markdown(f"<div style='margin-bottom:8px;'><b>🟢 Pas {pas_nr}: {nume_pas}</b><br/><span style='color:gray; font-size:12px; margin-left: 25px;'>↳ <i>{text_detaliu}</i></span></div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"<div style='margin-bottom:8px;'><span style='color:lightgrey;'>⚪ Pas {pas_nr}: {nume_pas}</span></div>", unsafe_allow_html=True)
+                            
+                # Afisare Tabel Reexaminare (doar daca a generat intrari valide!)
+                reex_curenta = pasi_reex_df[pasi_reex_df['lege_id'] == id_lege]
+                are_reexaminare = False
+                
+                if not reex_curenta.empty:
+                    for _, r in reex_curenta.iterrows():
+                        v = r['detalii']
+                        if pd.notna(v) and str(v).strip() != "" and str(v).lower() != "none":
+                            are_reexaminare = True
+                            break
+                            
+                if are_reexaminare:
+                    st.markdown("<br/>#### ⚠️ Traseu de Reexaminare", unsafe_allow_html=True)
+                    
+                    pasii_reex_canonici = [
+                        (1, "Depunere cerere reexaminare (I-a Camera)"),
+                        (2, "Prezentare in Biroul Permanent (I-a Camera)"),
+                        (3, "Trimitere catre comisii (I-a Camera)"),
+                        (4, "Raport Comisii (I-a Camera)"),
+                        (5, "Ordinea de zi a Plenului (I-a Camera)"),
+                        (6, "Vot Plen (I-a Camera)"),
+                        (7, "Depunere cerere reexaminare (II-a Camera)"),
+                        (8, "Prezentare in Biroul Permanent (II-a Camera)"),
+                        (9, "Trimitere catre comisii (II-a Camera)"),
+                        (10, "Raport Comisii (II-a Camera)"),
+                        (11, "Ordinea de zi a Plenului (II-a Camera)"),
+                        (12, "Vot Plen (II-a Camera)"),
+                        (13, "Trimis Promulgare"),
+                        (14, "Promulgat Presedinte"),
+                        (15, "Publicat in MO")
+                    ]
+                    
+                    with st.container(border=True):
+                        # Desenam timeline-ul vertical pentru reexaminare
+                        for pas_nr, nume_pas in pasii_reex_canonici:
+                            detaliu_row = reex_curenta[reex_curenta['ordine_pas'] == pas_nr]
+                            
+                            este_atins = False
+                            text_detaliu = ""
+                            
+                            if not detaliu_row.empty:
+                                valoare = detaliu_row.iloc[0]['detalii']
+                                if pd.notna(valoare) and str(valoare).strip() != "" and str(valoare).lower() != "none":
+                                    este_atins = True
+                                    text_detaliu = str(valoare)
+                                    
+                            if este_atins:
+                                st.markdown(f"<div style='margin-bottom:8px;'><b>🟠 Pas R-{pas_nr}: {nume_pas}</b><br/><span style='color:gray; font-size:12px; margin-left: 25px;'>↳ <i>{text_detaliu}</i></span></div>", unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"<div style='margin-bottom:8px;'><span style='color:lightgrey;'>⚪ Pas R-{pas_nr}: {nume_pas}</span></div>", unsafe_allow_html=True)
+
     except Exception as e:
         st.error(f"Eroare la redarea tabloului de bord: {e}")
 

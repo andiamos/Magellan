@@ -229,7 +229,9 @@ def normalize_data():
     if not parcurs_df.empty:
         parcurs_df['id'] = range(1, len(parcurs_df) + 1)
 
-    # 7. Build Pasi Lege
+    # 7. Build Pasi Lege & Reexaminare(Using Advanced State Machine)
+    from parser_pasi import extract_standard_steps, extract_reexaminare_steps
+    
     timeline_cols = [
         'Inregistrare', 'Biroul permanent (prima camera)', 'Termen depunere amendamente', 
         'Inscrierea pe ordinea de zi a plenului', 'Vot plen', 'Dezbatere plen', 
@@ -240,23 +242,42 @@ def normalize_data():
     existing_timeline_cols = [c for c in timeline_cols if c in legi_df.columns]
     
     pasi_records = []
+    pasi_reex_records = []
+    print("Aplatizarea timeline-ului cu sistem inteligent de Match pe stări Standard și Reexaminare...")
     for _, row in legi_df.iterrows():
         l_id = row['id']
-        for i, col in enumerate(existing_timeline_cols):
-            val = row[col]
-            if pd.notna(val):
-                val_str = str(val).strip()
-                if val_str and val_str.lower() != 'nu a fost specificat':
-                    pasi_records.append({
-                        'lege_id': l_id,
-                        'etapa': col,
-                        'detalii': val_str,
-                        'ordine_pas': i + 1
-                    })
+        prima_cam_raw = row.get('Prima cameră', 'Senat')
+        
+        # Extragem tot textul util existent pentru aceată lege
+        texts = [str(row[c]).strip() for c in existing_timeline_cols if pd.notna(row[c]) and str(row[c]).strip().lower() != 'nu a fost specificat']
+        
+        # Lansăm regex Parser-ul creat anterior pe această colecție de texte
+        pasi_inteligenti = extract_standard_steps(texts, prima_cam_raw)
+        pasi_reexaminare = extract_reexaminare_steps(texts, prima_cam_raw)
+        
+        for pas in pasi_inteligenti:
+            pasi_records.append({
+                'lege_id': l_id,
+                'etapa': pas['nume'],
+                'detalii': pas['detalii'],
+                'ordine_pas': pas['ordine_pas']
+            })
+            
+        for pas in pasi_reexaminare:
+            pasi_reex_records.append({
+                'lege_id': l_id,
+                'etapa': pas['nume'],
+                'detalii': pas['detalii'],
+                'ordine_pas': pas['ordine_pas']
+            })
                 
     pasi_df = pd.DataFrame(pasi_records)
     if not pasi_df.empty:
         pasi_df['id'] = range(1, len(pasi_df) + 1)
+        
+    pasi_reex_df = pd.DataFrame(pasi_reex_records)
+    if not pasi_reex_df.empty:
+        pasi_reex_df['id'] = range(1, len(pasi_reex_df) + 1)
         
     print("\n--- Summary ---")
     print(f"Prepared Legi: {len(legi_insert)}")
@@ -265,11 +286,13 @@ def normalize_data():
     print(f"Prepared Comisii: {len(comisii_df)}")
     print(f"Prepared Parcurs Comisii: {len(parcurs_df)}")
     print(f"Prepared Pasi Lege: {len(pasi_df)}")
+    print(f"Prepared Pasi Reexaminare: {len(pasi_reex_df)}")
 
     # 8. Clean existing tables securely due to Foreign Keys
     print("\nDropping existing normalized tables (CASCADE)...")
     with engine.begin() as conn:
         conn.execute(text("DROP TABLE IF EXISTS pasi_lege CASCADE;"))
+        conn.execute(text("DROP TABLE IF EXISTS pasi_reexaminare CASCADE;"))
         conn.execute(text("DROP TABLE IF EXISTS parcurs_comisii CASCADE;"))
         conn.execute(text("DROP TABLE IF EXISTS legi_initiatori CASCADE;"))
         conn.execute(text("DROP TABLE IF EXISTS afiliere_politica CASCADE;"))
@@ -302,6 +325,10 @@ def normalize_data():
         if not pasi_df.empty:
             pasi_df.to_sql('pasi_lege', conn, if_exists='append', index=False)
             
+        print(" -> Bulk inserting pasi_reexaminare...")
+        if not pasi_reex_df.empty:
+            pasi_reex_df.to_sql('pasi_reexaminare', conn, if_exists='append', index=False)
+            
     # 9. Add Data Integrity via Raw SQL Primary and Foreign Keys
     print("\nEstablishing Data Integrity (Foreign Keys & Primary Keys)...")
     with engine.begin() as conn:
@@ -320,6 +347,10 @@ def normalize_data():
         if not pasi_df.empty:
             conn.execute(text("ALTER TABLE pasi_lege ADD PRIMARY KEY (id);"))
             conn.execute(text("ALTER TABLE pasi_lege ADD FOREIGN KEY (lege_id) REFERENCES legi(id) ON DELETE CASCADE;"))
+            
+        if not pasi_reex_df.empty:
+            conn.execute(text("ALTER TABLE pasi_reexaminare ADD PRIMARY KEY (id);"))
+            conn.execute(text("ALTER TABLE pasi_reexaminare ADD FOREIGN KEY (lege_id) REFERENCES legi(id) ON DELETE CASCADE;"))
 
         # Create empty tables for future Political Parties architecture
         print("\nCreating schema for Political Parties (Empty for now)...")
