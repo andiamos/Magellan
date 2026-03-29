@@ -310,7 +310,7 @@ with tab1:
                                     
                             clean_name = nume_pas.replace("(", "").replace(")", "").replace('"', '')
                             # Prefixăm statiile cu R- pentru a indica distinctia Liniei Secundare
-                            mermaid_code.append(f"  R{pas_nr}([\"R-{pas_nr}. {clean_name}\"])")
+                            mermaid_code.append(f"  R{pas_nr}[\"R-{pas_nr}. {clean_name}\"]")
                             
                             if este_atins:
                                 mermaid_code.append(f"  class R{pas_nr} reex")
@@ -321,7 +321,7 @@ with tab1:
                             if pas_nr > 1:
                                 mermaid_code.append(f"  R{pas_nr-1} ==> R{pas_nr}")
                     
-                    final_mermaid = "\\n".join(mermaid_code)
+                    final_mermaid = "\n".join(mermaid_code)
                     
                     html_code = f"""
                     <!DOCTYPE html>
