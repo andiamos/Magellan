@@ -12,6 +12,38 @@ def clean_romanian_text(val):
     val_str = val_str.replace('ş', 'ș').replace('Ş', 'Ș')
     return val_str
 
+def normalize_plx(val):
+    if pd.isna(val) or not val:
+        return val
+    val_str = str(val).strip()
+    # Identifică și re-formatează variațiile: PLx., PL-x, PL X, PLX urmate de Numar/An
+    # Ex: "PL-x 123/2024" devine "PLX123/2024"
+    val_str = re.sub(r'(?i)pl[- \.]*x[- \.]*(\d+)\s*/\s*(\d{2,4})', r'PLX\1/\2', val_str)
+    return val_str
+
+def check_match_legi(senat_nr, cd_nr):
+    """
+    Logic: TRUE dacă ambele camere au numere de înregistrare valabile (L... și PLX...).
+    FALSE dacă doar una are.
+    """
+    if pd.isna(senat_nr) or str(senat_nr).strip() == "" or str(senat_nr).lower() == "nan":
+        s_val = False
+    else:
+        # Verificăm dacă are format de Senat: începe cu L urmat de cifre
+        s_val = bool(re.search(r'(?i)^L\d+', str(senat_nr).strip()))
+        
+    if pd.isna(cd_nr) or str(cd_nr).strip() == "" or str(cd_nr).lower() == "nan":
+        c_val = False
+    else:
+        # Verificăm dacă are format de CD: PLX urmat de cifre (deja normalizat de noi)
+        c_val = bool(re.search(r'(?i)^PLX\d+', str(cd_nr).strip()))
+        
+    if s_val and c_val:
+        return True
+    if s_val or c_val:
+        return False
+    return False
+
 def clean_boolean(val):
     if pd.isna(val): return False
     val_str = str(val).strip().lower()
@@ -86,12 +118,12 @@ def normalize_data():
     # Prepare the legi table for insertion
     legi_insert = pd.DataFrame({
         'id': legi_df['id'],
-        'numar_lege': legi_df['lege'].apply(clean_romanian_text),
+        'numar_lege': legi_df['lege'].apply(clean_romanian_text).apply(normalize_plx),
         'titlu': legi_df['Titlu lege'].apply(clean_romanian_text),
         'titlu_sumar': legi_df['Titlu lege (sumar)'].apply(clean_romanian_text),
         'data_inregistrare': legi_df['Data'],
         'numar_inregistrare_senat': legi_df['Numar de inregistrare Senat'].apply(clean_romanian_text),
-        'numar_inregistrare_cd': legi_df['Număr de înregistrare Camera Deputaților'].apply(clean_romanian_text),
+        'numar_inregistrare_cd': legi_df['Număr de înregistrare Camera Deputaților'].apply(clean_romanian_text).apply(normalize_plx),
         'prima_camera': legi_df['Prima cameră'].apply(clean_romanian_text).replace({'Camera Deputatilor': 'Camera Deputaților'}),
         'tip_initiativa': legi_df['Tip inițiativă'].apply(clean_romanian_text).str.capitalize(),
         'caracter_lege': legi_df['Caracterul legii'].apply(clean_romanian_text),
@@ -102,6 +134,13 @@ def normalize_data():
         'monitorul_oficial_numar': legi_df['mo_numar'],
         'monitorul_oficial_data': legi_df['mo_data']
     })
+    
+    # Calculăm match_legi
+    # Atenție: numar_inregistrare_cd folosit aici trebuie să fie cel deja normalizat
+    legi_insert['match_legi'] = legi_insert.apply(
+        lambda x: check_match_legi(x['numar_inregistrare_senat'], x['numar_inregistrare_cd']), 
+        axis=1
+    )
     
     # 3. Build Parlamentari (Initiatori)
     initiator_records = []
