@@ -7,8 +7,8 @@ import pandas as pd
 # Cheia este numărul pasului logic (1-8 pt camera curenta). Vor fi ajustate dinamic.
 STANDARD_STEPS = {
     "depunere_proiect": {
-        "SE": r"înregistrat la senat pentru dezbatere cu nr",
-        "CD": r"înregistrat la camera deputaţilor pentru dezbatere|înregistrat la camera deputaților pentru dezbatere"
+        "SE": r"înregistrat[ăa]? la senat",
+        "CD": r"înregistrat[ăa]? la camera deputa[țţ]ilor"
     },
     "prezentare_bp": {
         "SE": r"prezentare în biroul permanent",
@@ -69,9 +69,45 @@ FINAL_STEPS = {
 }
 
 
-def extract_standard_steps(texts, prima_cam_text):
+def get_all_tip_pasi():
+    """Returnează dicționarul static cu toți pașii posibili pentru popularea tabelei tip_pasi."""
+    found_steps = []
+    
+    step_mapping = [
+        ("depunere_proiect", "Depunere proiect de lege"),
+        ("prezentare_bp", "Prezentare in Biroul Permanent"),
+        ("avize_consultative", "Avize Consultative"),
+        ("trimitere_comisii", "Trimitere catre comisii"),
+        ("avize_comisii", "Avize Comisii"),
+        ("raport_comisii", "Raport Comisii"),
+        ("ordine_de_zi", "Ordinea de zi a Plenului"),
+        ("vot_plen", "Vot Plen")
+    ]
+
+    # Pre-populăm matricea Standard (1-22)
+    for idx, (step_key, step_name) in enumerate(step_mapping, start=1):
+        found_steps.append({"id": idx, "cod": f"pas_{idx}", "nume": f"{step_name} (I-a Camera)", "ordine_pas": idx, "tip_flux": "standard"})
+        found_steps.append({"id": idx + 8, "cod": f"pas_{idx+8}", "nume": f"{step_name} (II-a Camera)", "ordine_pas": idx + 8, "tip_flux": "standard"})
+        
+    for num_key in FINAL_STEPS.keys():
+        pas_id = num_key.split('_')[0] + "_" + num_key.split('_')[1] # pas_17
+        pas_nr = int(pas_id.split('_')[1])
+        nume_pas = num_key.replace(pas_id + "_", "").title().replace("_", " ")
+        found_steps.append({"id": pas_nr, "cod": pas_id, "nume": nume_pas, "ordine_pas": pas_nr, "tip_flux": "standard"})
+
+    # Adăugăm Reexaminarea (15 pași) cu ID-uri începând de pe la 30
+    for idx in range(1, 16):
+        nume_pas = f"Reexaminare Etapa {idx}"
+        # A simple mapping for reexaminare will just be added to the db
+        found_steps.append({"id": 30 + idx, "cod": f"pas_reex_{idx}", "nume": nume_pas, "ordine_pas": idx, "tip_flux": "reexaminare"})
+
+    # Sort and return unique steps by ID
+    found_steps.sort(key=lambda x: x['id'])
+    return found_steps
+
+def extract_standard_steps(row, prima_cam_text):
     """
-    Parcurge o listă de texte brute asociată unei legi și extrage dicționarul de pași atinși.
+    Parcurge rândul de tabel asociat unei legi și extrage dicționarul de pași atinși prin MAPARE DIRECTĂ pe coloane.
     Nu necesită ca userul să spună ce cameră a emis acțiunea, deduce automat din Regex (SE/CD).
     Acum returnează MEREU 22 de pași (matrice completă).
     """
@@ -106,25 +142,52 @@ def extract_standard_steps(texts, prima_cam_text):
         nume_pas = num_key.replace(pas_id + "_", "").title().replace("_", " ")
         found_steps[pas_nr] = {"id": pas_id, "nume": nume_pas, "detalii": None, "ordine_pas": pas_nr}
 
-    for text in texts:
-        if pd.isna(text): continue
-        text = str(text).lower()
-        if text == 'nan' or text == 'nu a fost specificat' or not text.strip():
-            continue
-            
-        # Verificăm pașii 1-16 (Standard, I-a și a II-a Cameră)
-        for idx, (step_key, step_name) in enumerate(step_mapping, start=1):
-            if re.search(STANDARD_STEPS[step_key]["SE"], text):
-                offset = 0 if prima_cam_code == "SE" else 8
-                pas_nr = idx + offset
-                found_steps[pas_nr]["detalii"] = text
-            
-            if re.search(STANDARD_STEPS[step_key]["CD"], text):
-                offset = 0 if prima_cam_code == "CD" else 8
-                pas_nr = idx + offset
-                found_steps[pas_nr]["detalii"] = text
+    # ==========================================
+    # IMPLEMENTARE NOUA LOGICA (1-LA-1) PT PAȘII 1-3
+    # ==========================================
 
-        # Verificăm pașii finali (17-22)
+    # Pas 1: Depunere proiect (Din coloana Inregistrare)
+    inreg = str(row.get('Inregistrare', '')).strip()
+    if inreg and inreg.lower() not in ['nan', 'nu a fost specificat']:
+        if prima_cam_code == 'SE':
+            if re.search(STANDARD_STEPS["depunere_proiect"]["SE"], inreg.lower()):
+                found_steps[1]["detalii"] = inreg
+        elif prima_cam_code == 'CD':
+            if re.search(STANDARD_STEPS["depunere_proiect"]["CD"], inreg.lower()):
+                found_steps[1]["detalii"] = inreg
+
+    # Pas 2: Prezentare în Biroul Permanent (Din coloana Biroul permanent)
+    bp = str(row.get('Biroul permanent (prima camera)', '')).strip()
+    if bp and bp.lower() not in ['nan', 'nu a fost specificat']:
+        if prima_cam_code == 'SE':
+            if re.search(STANDARD_STEPS["prezentare_bp"]["SE"], bp.lower()):
+                found_steps[2]["detalii"] = bp
+        elif prima_cam_code == 'CD':
+            if re.search(STANDARD_STEPS["prezentare_bp"]["CD"], bp.lower()):
+                found_steps[2]["detalii"] = bp
+
+    # Pas 3: Stadiu (Noua cerință: Doar pentru Senat populează Pas 3)
+    stadiu = str(row.get('Stadiu', '')).strip()
+    if stadiu and stadiu.lower() not in ['nan', 'nu a fost specificat']:
+        if prima_cam_code == 'SE':
+            found_steps[3]["detalii"] = stadiu
+        elif prima_cam_code == 'CD':
+            # Conform cerinței, lăsăm gol deocamdată
+            pass
+
+    # TODO: Logica pentru pașii 4-16 va fi mapată ulterior.
+
+    # Verificăm pașii finali (17-22) concatenând tot timeline-ul (temporar pentru a nu-i pierde)
+    timeline_cols = [
+        'Inregistrare', 'Biroul permanent (prima camera)', 'Termen depunere amendamente', 
+        'Inscrierea pe ordinea de zi a plenului', 'Vot plen', 'Dezbatere plen', 
+        'Cale de atac', 'Sesizare neconstitutionalitate', 'Trimis la Promulgare', 
+        'Presedintele ataca la Curtea Constitutionala', 'Promulgat', 'Monitorul Oficial'
+    ]
+    texts_final = [str(row.get(col, '')).lower() for col in timeline_cols if pd.notna(row.get(col))]
+    
+    for text in texts_final:
+        if text.strip() in ['nan', 'nu a fost specificat', '']: continue
         for num_key, val in FINAL_STEPS.items():
             if re.search(val["SE"], text) or re.search(val["CD"], text):
                 pas_id = num_key.split('_')[0] + "_" + num_key.split('_')[1] # ex: pas_17
@@ -175,21 +238,28 @@ def extract_reexaminare_steps(texts, prima_cam_text):
     found_steps[14] = {"id": "pas_reex_14", "nume": "Promulgat de Presedinte", "detalii": None, "ordine_pas": 14}
     found_steps[15] = {"id": "pas_reex_15", "nume": "Publicat in MO", "detalii": None, "ordine_pas": 15}
 
+    vot_plen_cam_1_atins = False
+
     for text in texts:
         if pd.isna(text): continue
         t_lower = str(text).lower()
         if t_lower == 'nan' or not t_lower.strip() or t_lower == 'nu a fost specificat':
             continue
             
-        # Alocam detaliile gasite conform dictionarului STANDARD (extins intern)
+        # Alocam detaliile gasite cu logica 'Waterfall'
         for idx, (step_key, _) in enumerate(step_mapping, start=1):
-            if re.search(STANDARD_STEPS[step_key]["SE"], t_lower):
-                offset = 0 if prima_cam_code == "SE" else 6
-                found_steps[idx + offset]["detalii"] = text
-                
-            if re.search(STANDARD_STEPS[step_key]["CD"], t_lower):
-                offset = 0 if prima_cam_code == "CD" else 6
-                found_steps[idx + offset]["detalii"] = text
+            match_se = re.search(STANDARD_STEPS[step_key]["SE"], t_lower)
+            match_cd = re.search(STANDARD_STEPS[step_key]["CD"], t_lower)
+            
+            if match_se or match_cd:
+                if not vot_plen_cam_1_atins:
+                    pas_nr = idx
+                    found_steps[pas_nr]["detalii"] = text
+                    if idx == 6: # Vot Plen Reexaminare I-a Camera
+                        vot_plen_cam_1_atins = True
+                else:
+                    pas_nr = idx + 6
+                    found_steps[pas_nr]["detalii"] = text
 
         # Finalii specifici
         if re.search(FINAL_STEPS["pas_19_trimis_promulgare"]["SE"], t_lower) or re.search(FINAL_STEPS["pas_19_trimis_promulgare"]["CD"], t_lower):
@@ -209,18 +279,20 @@ if __name__ == "__main__":
     # Simulam cum arată o lege citită din tabelul nostru actual (CSV vechi plat), unde avem X coloane de timeline
     mock_lege_bruta_1 = {
         "Prima_camera": "Senat",
-        "Timeline": [
-            "Înregistrat la Senat pentru dezbatere cu nr.b125",
-            "trimis pentru raport la Comisia de Munca",
-            "adoptat de Senat adoptare cu respectarea prevederilor art.76",
-            "înregistrat la Camera Deputaților pentru dezbatere",
-            "devine Legea 241/2025"
-        ]
+        "row_data": {
+            "Inregistrare": "Înregistrat la Senat pentru dezbatere cu nr.b125",
+            "Biroul permanent (prima camera)": "prezentare în biroul permanent",
+            "Stadiu": "trimis pentru raport la Comisia de Munca",
+            "Vot plen": "adoptat de Senat adoptare cu respectarea prevederilor art.76; înregistrat la CD",
+            "Trimis la Promulgare": "trimis la promulgare",
+            "Monitorul Oficial": "devine Legea 241/2025"
+        }
     }
     
-    print("Testare Sistem de Extragere Automat (Varianta fără a mai primi explicit camera actiunii):\\n" + "-"*80)
-    pasi_gasiti = extract_standard_steps(mock_lege_bruta_1["Timeline"], mock_lege_bruta_1["Prima_camera"])
+    print("Testare Sistem de Extragere Automat (Varianta Mapare coloane 1-la-1):\\n" + "-"*80)
+    pasi_gasiti = extract_standard_steps(mock_lege_bruta_1["row_data"], mock_lege_bruta_1["Prima_camera"])
     
     print(f"Legea Simulata (Prima Camera: {mock_lege_bruta_1['Prima_camera']}) - Au fost identificate {len(pasi_gasiti)} etape:")
     for pas in pasi_gasiti:
-        print(f"  [>] {pas['id']:<8} | {pas['nume']:<40} | Matches text: '{pas['detalii'][:30]}...'")
+        det = str(pas['detalii'])[:30] + "..." if pas['detalii'] else "Neatins"
+        print(f"  [>] {pas['id']:<8} | {pas['nume']:<40} | Matches text: '{det}'")
