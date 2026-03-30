@@ -239,11 +239,14 @@ with tab1:
                 atingeri_reex = set()
                 
                 if not reex_curenta.empty:
-                    for _, r in reex_curenta.iterrows():
-                        v = r['detalii']
-                        if pd.notna(v) and str(v).strip() != "" and str(v).lower() != "none":
-                            are_reexaminare = True
-                            atingeri_reex.add(int(r['ordine_pas']))
+                    valid_reex = reex_curenta[
+                        reex_curenta['detalii'].notna() & 
+                        (reex_curenta['detalii'].astype(str).str.strip() != "") & 
+                        (reex_curenta['detalii'].astype(str).str.lower() != "none")
+                    ]
+                    if not valid_reex.empty:
+                        are_reexaminare = True
+                        atingeri_reex = set(valid_reex['ordine_pas'].dropna().astype(int).tolist())
                             
                 pasii_reex_canonici = [
                     (1, "Cerere Reex. (I-a Cam.)"),
@@ -263,7 +266,13 @@ with tab1:
                     (15, "Publicat M.Of")
                 ]
                 
-                atingeri_init = set(pasi_lege_curenta['ordine_pas'].dropna().astype(int).tolist())
+                # Se calculează atingerile din fluxul inițial verificând să nu fie goale/None textele stadiilor
+                valid_init = pasi_lege_curenta[
+                    pasi_lege_curenta['detalii'].notna() & 
+                    (pasi_lege_curenta['detalii'].astype(str).str.strip() != "") & 
+                    (pasi_lege_curenta['detalii'].astype(str).str.lower() != "none")
+                ]
+                atingeri_init = set(valid_init['ordine_pas'].dropna().astype(int).tolist())
                 
                 def build_tracker_ui(pasii, atingeri, main_color="#00A2E8", title=""):
                     if not pasii: return ""
@@ -297,23 +306,22 @@ with tab1:
                         right_c = main_color if right_touched else '#e2e8f0'
                         line_right = "" if i == num_items - 1 else f"<div style='position:absolute; width:calc(50% - 24px); height:2px; background:{right_c}; top: 24px; right:0; z-index:1;'></div>"
                         
-                        circle_html = f'''
-                        <div style="position:relative; z-index:2; width:48px; height:48px; border-radius:50%; background:transparent; border:2px solid {border_color}; display:flex; justify-content:center; align-items:center;">
-                             <div style="width:36px; height:36px; border-radius:50%; background:{bg_color}; border:1px solid {border_color}; display:flex; justify-content:center; align-items:center; color:{icon_color};">
-                                {icon}
-                             </div>
-                        </div>
-                        '''
+                        circle_html = (
+                            f'<div style="position:relative; z-index:2; width:48px; height:48px; '
+                            f'border-radius:50%; background:transparent; border:2px solid {border_color}; '
+                            f'display:flex; justify-content:center; align-items:center;">'
+                            f'<div style="width:36px; height:36px; border-radius:50%; background:{bg_color}; '
+                            f'border:1px solid {border_color}; display:flex; justify-content:center; '
+                            f'align-items:center; color:{icon_color};">{icon}</div></div>'
+                        )
                         
-                        item_html = f'''
-                        <div style="position:relative; flex:1; display:flex; flex-direction:column; align-items:center;">
-                           {line_left}
-                           {line_right}
-                           {circle_html}
-                           <div style="margin-top:10px; font-size:11px; text-align:center; color:#64748b; max-width:90px; line-height:1.2;">{nume_pas}</div>
-                           <div style="margin-top:4px; font-size:12px; font-weight:bold; color:{main_color if stare != 'todo' else '#94a3b8'};">{pas_nr}</div>
-                        </div>
-                        '''
+                        item_html = (
+                            f'<div style="position:relative; flex:1; display:flex; flex-direction:column; align-items:center;">'
+                            f'{line_left}{line_right}{circle_html}'
+                            f'<div style="margin-top:10px; font-size:11px; text-align:center; color:#64748b; max-width:90px; line-height:1.2;">{nume_pas}</div>'
+                            f'<div style="margin-top:4px; font-size:12px; font-weight:bold; color:{main_color if stare != "todo" else "#94a3b8"};">{pas_nr}</div>'
+                            f'</div>'
+                        )
                         html += item_html
                         
                     html += "</div></div>"
