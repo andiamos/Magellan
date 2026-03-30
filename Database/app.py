@@ -236,13 +236,14 @@ with tab1:
                 # Căutăm reexaminarea
                 reex_curenta = pasi_reex_df[pasi_reex_df['lege_id'] == id_lege]
                 are_reexaminare = False
+                atingeri_reex = set()
                 
                 if not reex_curenta.empty:
                     for _, r in reex_curenta.iterrows():
                         v = r['detalii']
                         if pd.notna(v) and str(v).strip() != "" and str(v).lower() != "none":
                             are_reexaminare = True
-                            break
+                            atingeri_reex.add(int(r['ordine_pas']))
                             
                 pasii_reex_canonici = [
                     (1, "Cerere Reex. (I-a Cam.)"),
@@ -262,105 +263,96 @@ with tab1:
                     (15, "Publicat M.Of")
                 ]
                 
-                with st.container(border=True):
-                    # Generează codul sursă pentru diagrama Mermaid (Rețea Metrou)
-                    mermaid_code = ["graph LR"]
-                    mermaid_code.append("classDef done fill:#d4edda,stroke:#28a745,stroke-width:2px,color:#155724")
-                    mermaid_code.append("classDef todo fill:#f8f9fa,stroke:#ced4da,stroke-width:2px,color:#6c757d")
-                    mermaid_code.append("classDef reex fill:#ffe8a1,stroke:#ffc107,stroke-width:3px,color:#856404")
+                atingeri_init = set(pasi_lege_curenta['ordine_pas'].dropna().astype(int).tolist())
+                
+                def build_tracker_ui(pasii, atingeri, main_color="#00A2E8", title=""):
+                    if not pasii: return ""
                     
-                    # Rădăcinile de traseu standard
-                    for pas_nr, nume_pas in pasii_canonici:
-                        detaliu_row = pasi_lege_curenta[pasi_lege_curenta['ordine_pas'] == pas_nr]
-                        este_atins = False
-                        text_detaliu = ""
+                    max_atins = max(atingeri, default=0)
+                    html = f"<div style='margin-bottom: 20px;'><h5 style='color: #444; font-size: 16px; margin-bottom:15px; padding-bottom:5px; border-bottom:1px solid #e2e8f0;'>{title}</h5>"
+                    html += "<div style='display: flex; justify-content: space-between; position:relative; width:100%; padding-bottom:10px;'>"
+                    
+                    num_items = len(pasii)
+                    for i, (pas_nr, nume_pas) in enumerate(pasii):
+                        stare = 'todo'
+                        if pas_nr in atingeri: stare = 'done'
+                        elif pas_nr == max_atins + 1: stare = 'current'
                         
-                        if not detaliu_row.empty:
-                            valoare = detaliu_row.iloc[0]['detalii']
-                            if pd.notna(valoare) and str(valoare).strip() != "" and str(valoare).lower() != "none":
-                                este_atins = True
-                                text_detaliu = str(valoare).replace('"', "'").replace('<', '[').replace('>', ']')
-                        
-                        clean_name = nume_pas.replace("(", "").replace(")", "").replace('"', '')
-                        
-                        if este_atins and text_detaliu:
-                            # Adăugăm detaliul pe al doilea rând în interiorul cutiei
-                            node_label = f"{pas_nr}. {clean_name}<br/><span style='font-size:11px;color:#555;'>{text_detaliu}</span>"
+                        if stare == 'done':
+                            icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+                        elif stare == 'current':
+                            icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2H3V6l7 6-7 6v4h18v-4l-7-6 7-6V2Z"/></svg>'
                         else:
-                            node_label = f"{pas_nr}. {clean_name}"
+                            icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
                             
-                        mermaid_code.append(f"  P{pas_nr}[\"{node_label}\"]")
+                        # Set colors based on state
+                        border_color = main_color if stare != 'todo' else '#cbd5e1'
+                        icon_color = main_color if stare != 'todo' else '#94a3b8'
+                        bg_color = main_color + '1A' if stare != 'todo' else 'transparent'
+                            
+                        left_c = main_color if stare == 'done' or stare == 'current' else '#e2e8f0'
+                        line_left = "" if i == 0 else f"<div style='position:absolute; width:calc(50% - 24px); height:2px; background:{left_c}; top: 24px; left:0; z-index:1;'></div>"
                         
-                        if este_atins:
-                            mermaid_code.append(f"  class P{pas_nr} done")
-                        else:
-                            mermaid_code.append(f"  class P{pas_nr} todo")
-                            
-                        # Desenează sinele (traseul M1)
-                        if pas_nr > 1:
-                            if pas_nr == 21 and are_reexaminare:
-                                # Macaz: Daca intra in reexaminare, tronsonul vechi cade (ramane gri in aer)
-                                pass
-                            else:
-                                mermaid_code.append(f"  P{pas_nr-1} --> P{pas_nr}")
-                    
-                    if are_reexaminare:
-                        # Deschidem o linie nouă din statia 20!
-                        mermaid_code.append(f"  P20 -.->|Deviere: Cerere de Reexaminare| R1")
+                        right_touched = (pas_nr in atingeri and (pas_nr+1 in atingeri or pas_nr+1 == max_atins+1))
+                        right_c = main_color if right_touched else '#e2e8f0'
+                        line_right = "" if i == num_items - 1 else f"<div style='position:absolute; width:calc(50% - 24px); height:2px; background:{right_c}; top: 24px; right:0; z-index:1;'></div>"
                         
-                        for pas_nr, nume_pas in pasii_reex_canonici:
-                            detaliu_row = reex_curenta[reex_curenta['ordine_pas'] == pas_nr]
-                            este_atins = False
-                            text_detaliu = ""
-                            
-                            if not detaliu_row.empty:
-                                valoare = detaliu_row.iloc[0]['detalii']
-                                if pd.notna(valoare) and str(valoare).strip() != "" and str(valoare).lower() != "none":
-                                    este_atins = True
-                                    text_detaliu = str(valoare).replace('"', "'").replace('<', '[').replace('>', ']')
-                                    
-                            clean_name = nume_pas.replace("(", "").replace(")", "").replace('"', '')
-                            
-                            if este_atins and text_detaliu:
-                                node_label = f"R-{pas_nr}. {clean_name}<br/><span style='font-size:11px;color:#664d03;'>{text_detaliu}</span>"
-                            else:
-                                node_label = f"R-{pas_nr}. {clean_name}"
-                                
-                            # Prefixăm statiile cu R- pentru a indica distinctia Liniei Secundare
-                            mermaid_code.append(f"  R{pas_nr}[\"{node_label}\"]")
-                            
-                            if este_atins:
-                                mermaid_code.append(f"  class R{pas_nr} reex")
-                            else:
-                                mermaid_code.append(f"  class R{pas_nr} todo")
-                                
-                            # Șinele tronsonului galben/portocaliu
-                            if pas_nr > 1:
-                                mermaid_code.append(f"  R{pas_nr-1} ==> R{pas_nr}")
-                                
-                        # Închidem ramura paralelă în schema originală (la stația 22)
-                        mermaid_code.append(f"  R15 ==>|Revine în Schema Principală| P22")
+                        circle_html = f'''
+                        <div style="position:relative; z-index:2; width:48px; height:48px; border-radius:50%; background:transparent; border:2px solid {border_color}; display:flex; justify-content:center; align-items:center;">
+                             <div style="width:36px; height:36px; border-radius:50%; background:{bg_color}; border:1px solid {border_color}; display:flex; justify-content:center; align-items:center; color:{icon_color};">
+                                {icon}
+                             </div>
+                        </div>
+                        '''
+                        
+                        item_html = f'''
+                        <div style="position:relative; flex:1; display:flex; flex-direction:column; align-items:center;">
+                           {line_left}
+                           {line_right}
+                           {circle_html}
+                           <div style="margin-top:10px; font-size:11px; text-align:center; color:#64748b; max-width:90px; line-height:1.2;">{nume_pas}</div>
+                           <div style="margin-top:4px; font-size:12px; font-weight:bold; color:{main_color if stare != 'todo' else '#94a3b8'};">{pas_nr}</div>
+                        </div>
+                        '''
+                        html += item_html
+                        
+                    html += "</div></div>"
+                    return html
+
+                # Cream Taburile Streamlit Nativ!
+                if are_reexaminare:
+                    tab_init, tab_reex = st.tabs(["Parcurs Inițial", "Reexaminare"])
+                else:
+                    tab_init, = st.tabs(["Parcurs Inițial"])
                     
-                    final_mermaid = "\n".join(mermaid_code)
+                a_doua_cam = "Senat" if prima_cam.lower().strip() == "camera deputatilor" else "Camera Deputaților"
+
+                with tab_init:
+                    # R1: 1-8
+                    p1 = pasii_canonici[0:8]
+                    st.markdown(build_tracker_ui(p1, atingeri_init, main_color="#3b82f6", title=f"Parcurs legislativ ({prima_cam} - Prima Cameră)"), unsafe_allow_html=True)
                     
-                    html_code = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <script type="module">
-                            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-                            mermaid.initialize({{ startOnLoad: true, theme: 'base' }});
-                        </script>
-                    </head>
-                    <body style="margin:0; padding:10px; font-family: sans-serif; text-align: center;">
-                        <pre class="mermaid">
-{final_mermaid}
-                        </pre>
-                    </body>
-                    </html>
-                    """
+                    # R2: 9-16
+                    p2 = pasii_canonici[8:16]
+                    st.markdown(build_tracker_ui(p2, atingeri_init, main_color="#f59e0b", title=f"Parcurs legislativ ({a_doua_cam} - A Doua Cameră)"), unsafe_allow_html=True)
                     
-                    components.html(html_code, height=650, scrolling=True)
+                    # R3: 17-22
+                    p3 = pasii_canonici[16:22]
+                    st.markdown(build_tracker_ui(p3, atingeri_init, main_color="#10b981", title="Căi de atac și Promulgare"), unsafe_allow_html=True)
+                    
+                if are_reexaminare:
+                    with tab_reex:
+                        # R1: 1-6
+                        pr1 = pasii_reex_canonici[0:6]
+                        st.markdown(build_tracker_ui(pr1, atingeri_reex, main_color="#3b82f6", title=f"Reexaminare ({prima_cam})"), unsafe_allow_html=True)
+                        
+                        # R2: 7-12
+                        pr2 = pasii_reex_canonici[6:12]
+                        st.markdown(build_tracker_ui(pr2, atingeri_reex, main_color="#f59e0b", title=f"Reexaminare ({a_doua_cam})"), unsafe_allow_html=True)
+                        
+                        # R3: 13-15
+                        pr3 = pasii_reex_canonici[12:15]
+                        st.markdown(build_tracker_ui(pr3, atingeri_reex, main_color="#10b981", title="Promulgare și Publicare (Iterația 2)"), unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Eroare la redarea tabloului de bord: {e}")
