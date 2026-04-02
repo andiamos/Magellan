@@ -85,10 +85,18 @@ with tab1:
             """, eng)
             
             c_df = pd.read_sql("SELECT lege_id, comisie_id FROM parcurs_comisii", eng)
-            p_df = pd.read_sql("SELECT lege_id, etapa, detalii, ordine_pas FROM pasi_lege", eng)
+            p_df = pd.read_sql("""
+                SELECT pl.lege_id, tp.nume AS etapa, pl.detalii, tp.ordine_pas 
+                FROM pasi_lege pl
+                JOIN tip_pasi tp ON pl.tip_pas_id = tp.id
+            """, eng)
             
             try:
-                p_reex_df = pd.read_sql("SELECT lege_id, etapa, detalii, ordine_pas FROM pasi_reexaminare", eng)
+                p_reex_df = pd.read_sql("""
+                    SELECT pr.lege_id, tp.nume AS etapa, pr.detalii, tp.ordine_pas 
+                    FROM pasi_reexaminare pr
+                    JOIN tip_pasi tp ON pr.tip_pas_id = tp.id
+                """, eng)
             except Exception:
                 p_reex_df = pd.DataFrame(columns=['lege_id', 'etapa', 'detalii', 'ordine_pas'])
                 
